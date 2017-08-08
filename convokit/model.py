@@ -57,6 +57,7 @@ class User:
             rep["attribs"] = {k: self._info[k] for k in self._split_attribs
                     if k in self._info}
         self._uid = "User(" + str(sorted(rep.items())) + ")"
+        self.rep = rep
 
     def __eq__(self, other):
         return self._uid == other._uid
@@ -69,6 +70,8 @@ class User:
 
     def __repr__(self):
         return self._uid
+    def __rep__(self):
+        return self.rep
 
 class Utterance:
     """Represents a single utterance in the dataset.
@@ -115,7 +118,8 @@ class Corpus:
     :param filename: path of json or csv file to load
     :param utterances: list of utterances to load
     :param merge_lines: whether to merge adjacent
-        lines from the same user if the two utterances have the same root.
+        lines from same author if the two utterances have the same root.
+        Uses the older version of the other attribs.
     :param subdivide_users_by: collection of strings corresponding to attribute
         names defined in the "user-info" entry. Use this if you want to count
         the same user as being different depending on attributes other than
@@ -140,29 +144,19 @@ class Corpus:
         KeyUserInfo = "user-info"  # can store any extra data
 
         if filename is not None:
-            with open(filename, "r") as f:
-                try:
-                    utterances = json.load(f)
-                except:
-                    try:
-                        utterances = self._load_csv(f, delim, DefinedKeys)
-                    except:
-                        raise ValueError("Couldn't load corpus:" +
-                            " unknown file type")
+            if filename.endswith(".json") or "." not in filename:
+                utterances = json.load(open(filename, "r"))
+            elif filename.endswith(".csv"):
+                utterances = self._load_csv(open(filename, "r"), delim,
+                    DefinedKeys)
+            else:
+                raise ValueError("Couldn't load corpus: unknown file type")
 
             self.utterances = {}
             self.all_users = set()
-            users_cache = {}   # avoids creating duplicate user objects
-            #print(len(utterances))
-            for i, u in enumerate(utterances):
-                #if i % 100000 == 0: print(i, end=" ", flush=True)
+            for u in utterances:
                 u = defaultdict(lambda: None, u)
-                user_key = (u[KeyUser], str(sorted(u[KeyUserInfo].items())) if
-                    u[KeyUserInfo] is not None else None)
-                if user_key not in users_cache:
-                    users_cache[user_key] = User(name=u[KeyUser],
-                        info=u[KeyUserInfo])
-                user = users_cache[user_key]
+                user = User(name=u[KeyUser], info=u[KeyUserInfo])
                 self.all_users.add(user)
                 ut = Utterance(id=u[KeyId], user=user,
                         root=u[KeyConvoRoot],
